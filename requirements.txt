@@ -1,0 +1,5 @@
+Flask
+spotipy
+youtube-search-python
+pytube
+pydub
