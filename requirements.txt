@@ -4,4 +4,4 @@ yt-dlp
 pydub
 python-dotenv
 gunicorn
-youtubesearchpython
+youtube-search-python
