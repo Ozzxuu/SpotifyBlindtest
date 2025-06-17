@@ -1,5 +1,7 @@
 Flask
 spotipy
-youtube-search-python
-pytube
+yt-dlp
 pydub
+python-dotenv
+gunicorn
+youtubesearchpython
