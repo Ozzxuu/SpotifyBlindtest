@@ -7,7 +7,6 @@ from datetime import datetime
 from flask import Flask, request, jsonify, render_template
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
-from spotipy.exceptions import SpotifyException
 from youtubesearchpython import VideosSearch
 import yt_dlp
 from pydub import AudioSegment
@@ -26,34 +25,20 @@ def get_spotify_client():
         client_secret=SPOTIPY_CLIENT_SECRET
     ))
 
-sp = get_spotify_client()
-
 played_tracks = []
 played_tracks_data = []
 
 # === UTILITAIRES ===
 def get_random_track(playlist_url):
-    global sp
     playlist_id = playlist_url.split("/")[-1].split("?")[0]
+    sp = get_spotify_client()
+    results = sp.playlist_tracks(playlist_id)
+    tracks = results['items']
 
-    def fetch_tracks():
-        return sp.playlist_tracks(playlist_id)
-
-    try:
-        results = fetch_tracks()
-    except SpotifyException as e:
-        if e.http_status == 401:
-            print("\u26a0\ufe0f Token expir\u00e9, r\u00e9g\u00e9n\u00e9ration du client Spotify...")
-            sp = get_spotify_client()
-            results = fetch_tracks()
-        else:
-            raise
-
-    tracks = results.get('items', [])
     if not tracks:
-        raise Exception("Playlist vide ou inaccessible.")
+        raise Exception("Playlist vide.")
 
-    remaining_tracks = [t for t in tracks if t['track'] and t['track']['id'] not in played_tracks]
+    remaining_tracks = [t for t in tracks if t['track']['id'] not in played_tracks]
     if not remaining_tracks:
         played_tracks.clear()
         remaining_tracks = tracks
@@ -69,14 +54,14 @@ def download_youtube_audio(query, output_path):
     search = VideosSearch(query, limit=1)
     result = search.result()
     if not result['result']:
-        raise Exception("Aucun r\u00e9sultat YouTube.")
+        raise Exception("Aucun résultat YouTube.")
 
     link = result['result'][0]['link']
     title = result['result'][0]['title']
     thumbnail = result['result'][0]['thumbnails'][0]['url']
     channel = result['result'][0]['channel']['name']
 
-    print("\ud83d\udd17 Vid\u00e9o trouv\u00e9e :", link)
+    print("🔗 Vidéo trouvée :", link)
 
     output_path_base = os.path.splitext(output_path)[0]
 
@@ -96,7 +81,7 @@ def download_youtube_audio(query, output_path):
         ydl.download([link])
 
     if not os.path.exists(output_path):
-        raise Exception(f"\u00c9chec du t\u00e9l\u00e9chargement : fichier manquant ({output_path})")
+        raise Exception(f"Échec du téléchargement : fichier manquant ({output_path})")
 
     return output_path, title, thumbnail, channel
 
