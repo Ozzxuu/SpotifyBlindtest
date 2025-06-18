@@ -7,40 +7,31 @@
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      background-color: #111;
-      color: #fff;
+      background-color: #121212;
+      color: #ffffff;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 30px 20px;
+      padding: 20px;
     }
 
     h1 {
-      margin-bottom: 20px;
-      font-size: 2.7em;
-      color: #1DB954;
+      margin: 20px;
+      font-size: 2.5em;
     }
 
-    label, input, select, button {
-      font-size: 1em;
+    label, select, input, button {
       margin: 10px;
-    }
-
-    input[type="text"], input[type="number"] {
-      padding: 8px;
-      border-radius: 5px;
-      border: none;
-      width: 350px;
+      font-size: 1em;
     }
 
     button {
       background-color: #1DB954;
       border: none;
       color: white;
-      padding: 10px 25px;
-      border-radius: 8px;
+      padding: 10px 20px;
+      border-radius: 5px;
       cursor: pointer;
-      font-weight: bold;
       transition: background-color 0.3s ease;
     }
 
@@ -50,59 +41,52 @@
 
     #countdown {
       font-size: 2em;
-      margin-top: 20px;
-    }
-
-    #result {
-      margin: 20px;
-      text-align: center;
+      margin: 20px 0;
       transition: opacity 0.5s ease;
     }
 
-    #result img {
-      margin-top: 10px;
-      width: 220px;
-      border-radius: 10px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    #result {
+      font-size: 1.2em;
+      font-weight: bold;
+      margin: 10px;
+      color: #1DB954;
+      transition: opacity 0.5s ease;
     }
 
     audio {
+      margin: 15px;
+    }
+
+    #loader {
       margin: 20px;
+      display: none;
+      font-style: italic;
+      color: #ccc;
     }
 
     #history {
       margin-top: 40px;
-      max-width: 650px;
+      max-width: 600px;
       width: 100%;
     }
 
     .history-item {
       background: #1e1e1e;
-      border-left: 5px solid #1DB954;
       margin: 10px 0;
       padding: 10px;
       border-radius: 8px;
       display: flex;
       align-items: center;
-      animation: fadeIn 0.4s ease forwards;
-      transform: translateY(10px);
       opacity: 0;
+      transform: translateY(20px);
+      animation: fadeIn 0.5s forwards;
     }
 
     .history-item img {
       width: 60px;
       height: 60px;
-      border-radius: 8px;
+      border-radius: 5px;
       margin-right: 15px;
-    }
-
-    .history-item strong {
-      font-size: 1.1em;
-      color: #fff;
-    }
-
-    .history-item small {
-      color: #bbb;
     }
 
     @keyframes fadeIn {
@@ -116,83 +100,90 @@
 <body>
   <h1>🎵 Blind Test Spotify</h1>
 
-  <input type="text" id="playlist" placeholder="URL de votre playlist Spotify">
-  <input type="number" id="duration" min="1" max="60" value="5" placeholder="Durée (s)">
+  <label for="playlist">URL Playlist Spotify :</label>
+  <input type="text" id="playlist" size="60" placeholder="https://open.spotify.com/playlist/...">
+
+  <label for="duration">Durée de l'extrait :</label>
+  <input type="number" id="duration" min="1" max="60" value="5">
+
   <label><input type="checkbox" id="fullCheckbox"> Jouer en entier</label>
-  <br>
+
   <button onclick="startBlindTest()">Lancer 🎬</button>
 
+  <div id="loader">Chargement de l'extrait...</div>
   <div id="countdown"></div>
   <audio id="audio" controls hidden></audio>
   <div id="result"></div>
+
   <div id="history"></div>
 
   <script>
+    const countdownSound = new Audio("https://www.soundjay.com/button/beep-07.wav");
+
     async function startBlindTest() {
-      const playlist = document.getElementById("playlist").value.trim();
+      const playlist = document.getElementById("playlist").value;
       const duration = document.getElementById("duration").value;
       const full = document.getElementById("fullCheckbox").checked;
       const result = document.getElementById("result");
       const countdown = document.getElementById("countdown");
       const audio = document.getElementById("audio");
+      const loader = document.getElementById("loader");
 
-      result.innerHTML = "";
+      result.textContent = "";
       countdown.textContent = "";
       audio.hidden = true;
+      loader.style.display = "block";
       audio.pause();
 
       if (!playlist) {
         alert("Veuillez entrer une URL de playlist Spotify.");
+        loader.style.display = "none";
         return;
       }
 
-      try {
-        const response = await fetch(`/play?playlist=${encodeURIComponent(playlist)}&duration=${duration}&full=${full}`);
-        const data = await response.json();
-
-        if (!data.success) throw new Error(data.error || "Erreur inconnue");
-
-        audio.src = data.audio_url;
-        audio.hidden = false;
-        audio.play();
-
-        let timeLeft = parseInt(duration);
-        const interval = setInterval(() => {
-          countdown.textContent = `${timeLeft}s`;
-          timeLeft--;
-          if (timeLeft < 0) {
-            clearInterval(interval);
-            countdown.textContent = "⏱️ Réponse :";
-            result.innerHTML = `<div><strong>${data.title}</strong> — ${data.artist}</div><img src="${data.thumbnail}" alt="thumbnail">`;
-            loadHistory();
-          }
-        }, 1000);
-      } catch (err) {
-        alert("Erreur : " + err.message);
+      const response = await fetch(`/play?playlist=${encodeURIComponent(playlist)}&duration=${duration}&full=${full}`);
+      loader.style.display = "none";
+      if (!response.ok) {
+        alert("Erreur lors de la récupération de l'extrait.");
+        return;
       }
+
+      const data = await response.json();
+      audio.src = data.audio_url;
+      audio.hidden = false;
+      audio.play();
+
+      let timeLeft = parseInt(duration);
+      const interval = setInterval(() => {
+        countdown.textContent = `${timeLeft}s`;
+        countdownSound.play().catch(() => {});
+        timeLeft--;
+        if (timeLeft < 0) {
+          clearInterval(interval);
+          countdown.textContent = "⏱️ Réponse :";
+          result.innerHTML = `<strong style='font-size:1.3em;'>${data.title}</strong><br>${data.artist}<br><img src="${data.thumbnail}" width="200">`;
+          loadHistory();
+        }
+      }, 1000);
     }
 
     async function loadHistory() {
-      try {
-        const response = await fetch("/history");
-        const data = await response.json();
-        const historyContainer = document.getElementById("history");
-        historyContainer.innerHTML = "<h2>Historique</h2>";
+      const response = await fetch("/history");
+      const data = await response.json();
+      const historyContainer = document.getElementById("history");
+      historyContainer.innerHTML = "<h2>Historique</h2>";
 
-        data.forEach(item => {
-          const div = document.createElement("div");
-          div.className = "history-item";
-          div.innerHTML = `
-            <img src="${item.thumbnail}" alt="thumbnail">
-            <div>
-              <div><strong>${item.title}</strong> — ${item.artist}</div>
-              <small>${item.timestamp}</small>
-            </div>`;
-          historyContainer.appendChild(div);
-        });
-      } catch (e) {
-        console.error("Erreur chargement historique", e);
-      }
+      data.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "history-item";
+        div.innerHTML = `
+          <img src="${item.thumbnail}" alt="thumbnail">
+          <div>
+            <div><strong>${item.title}</strong> — ${item.artist}</div>
+            <div style="font-size: 0.9em; color: #bbb;">${item.timestamp}</div>
+          </div>`;
+        historyContainer.appendChild(div);
+      });
     }
 
     window.onload = loadHistory;
