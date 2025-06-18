@@ -20,7 +20,6 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 SPOTIPY_CLIENT_ID = os.getenv("SPOTIPY_CLIENT_ID")
 SPOTIPY_CLIENT_SECRET = os.getenv("SPOTIPY_CLIENT_SECRET")
 
-# Initialisation du client Spotify global
 sp = Spotify(auth_manager=SpotifyClientCredentials(
     client_id=SPOTIPY_CLIENT_ID,
     client_secret=SPOTIPY_CLIENT_SECRET
@@ -31,26 +30,18 @@ played_tracks_data = []
 
 # === UTILITAIRES ===
 
-import base64
-
-def write_cookie_file():
-    cookie_b64 = os.getenv("YTDLP_COOKIES_BASE64")
-    if cookie_b64:
-        with open("cookies.txt", "wb") as f:
-            f.write(base64.b64decode(cookie_b64))
-
 def get_random_track(playlist_url):
     try:
         playlist_id = playlist_url.split("/")[-1].split("?")[0]
         results = sp.playlist_tracks(playlist_id)
-        tracks = results['items']
+        tracks = [t for t in results['items'] if t['track']]
     except Exception as e:
-        raise Exception("Échec récupération des pistes Spotify : " + str(e))
+        raise Exception("Erreur Spotify : " + str(e))
 
     if not tracks:
-        raise Exception("Playlist vide.")
+        raise Exception("Playlist vide ou non accessible.")
 
-    remaining = [t for t in tracks if t['track'] and t['track']['id'] not in played_tracks]
+    remaining = [t for t in tracks if t['track']['id'] not in played_tracks]
     if not remaining:
         played_tracks.clear()
         remaining = tracks
@@ -65,30 +56,29 @@ def get_random_track(playlist_url):
 def download_youtube_audio(query, output_path):
     search = VideosSearch(query, limit=1)
     result = search.result()
+
     if not result['result']:
         raise Exception("Aucun résultat YouTube.")
 
-    link = result['result'][0]['link']
-    title = result['result'][0]['title']
-    thumbnail = result['result'][0]['thumbnails'][0]['url']
-    channel = result['result'][0]['channel']['name']
+    video = result['result'][0]
+    link = video['link']
+    title = video['title']
+    thumbnail = video['thumbnails'][0]['url']
+    channel = video['channel']['name']
 
     print(f"[YOUTUBE] Vidéo trouvée : {link}")
 
-    output_path_base = os.path.splitext(output_path)[0]
-
-    # === Traitement des cookies base64 ===
-    raw_cookie_b64 = os.getenv("YTDLP_COOKIES_BASE64")
-    if not raw_cookie_b64:
-        raise Exception("Variable YTDLP_COOKIES_BASE64 non définie.")
+    cookie_b64 = os.getenv("YTDLP_COOKIES_BASE64", "").strip()
+    if not cookie_b64:
+        raise Exception("Variable YTDLP_COOKIES_BASE64 absente ou vide.")
 
     with tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".txt") as tmp_cookie_file:
-        tmp_cookie_file.write(base64.b64decode(raw_cookie_b64))
+        tmp_cookie_file.write(base64.b64decode(cookie_b64))
         tmp_cookie_path = tmp_cookie_file.name
 
     ydl_opts = {
         'format': 'bestaudio/best',
-        'outtmpl': output_path_base + '.%(ext)s',
+        'outtmpl': os.path.splitext(output_path)[0] + '.%(ext)s',
         'quiet': True,
         'noplaylist': True,
         'cookiefile': tmp_cookie_path,
@@ -106,27 +96,19 @@ def download_youtube_audio(query, output_path):
         os.remove(tmp_cookie_path)
 
     if not os.path.exists(output_path):
-        raise Exception(f"Échec du téléchargement : fichier manquant ({output_path})")
-
-    return output_path, title, thumbnail, channel
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([link])
-
-    if not os.path.exists(output_path):
-        raise Exception(f"Échec du téléchargement : fichier manquant ({output_path})")
+        raise Exception(f"Échec du téléchargement : {output_path} introuvable.")
 
     return output_path, title, thumbnail, channel
 
 def cut_audio(input_path, output_path, duration_sec):
     audio = AudioSegment.from_file(input_path)
     if len(audio) < duration_sec * 1000:
-        raise Exception("Audio trop court.")
+        raise Exception("Extrait trop court.")
     start = random.randint(0, len(audio) - duration_sec * 1000)
-    extrait = audio[start:start + duration_sec * 1000]
-    extrait.export(output_path, format="mp3")
+    audio[start:start + duration_sec * 1000].export(output_path, format="mp3")
 
 # === ROUTES ===
+
 @app.route("/")
 def index():
     return render_template("index.html")
