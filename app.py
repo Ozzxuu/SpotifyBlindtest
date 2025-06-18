@@ -19,10 +19,6 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 SPOTIPY_CLIENT_ID = os.getenv("SPOTIPY_CLIENT_ID")
 SPOTIPY_CLIENT_SECRET = os.getenv("SPOTIPY_CLIENT_SECRET")
 
-print("CLIENT_ID =", SPOTIPY_CLIENT_ID)
-print("CLIENT_SECRET =", SPOTIPY_CLIENT_SECRET)
-
-
 def get_spotify_client():
     return Spotify(auth_manager=SpotifyClientCredentials(
         client_id=SPOTIPY_CLIENT_ID,
@@ -150,6 +146,14 @@ def play():
 @app.route("/history")
 def history():
     return jsonify(played_tracks_data)
+
+@app.route("/envcheck")
+def envcheck():
+    return {
+        "SPOTIPY_CLIENT_ID": os.getenv("SPOTIPY_CLIENT_ID"),
+        "SPOTIPY_CLIENT_SECRET": os.getenv("SPOTIPY_CLIENT_SECRET")
+    }
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
