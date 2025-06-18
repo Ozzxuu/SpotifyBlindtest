@@ -24,11 +24,13 @@ played_tracks_data = []
 
 # Fonction pour instancier dynamiquement le client Spotify
 def get_spotify_client():
-    print("[SPOTIFY] Creating new Spotify client instance")
+    print("[SPOTIFY] Creating new Spotify client instance (no cache)")
     return Spotify(auth_manager=SpotifyClientCredentials(
         client_id=SPOTIPY_CLIENT_ID,
-        client_secret=SPOTIPY_CLIENT_SECRET
+        client_secret=SPOTIPY_CLIENT_SECRET,
+        cache_path=None  # <--- désactive totalement le cache
     ))
+
 
 # === UTILITAIRES ===
 def get_random_track(playlist_url):
