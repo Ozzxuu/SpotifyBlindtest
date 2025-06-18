@@ -29,6 +29,15 @@ played_tracks = []
 played_tracks_data = []
 
 # === UTILITAIRES ===
+
+import base64
+
+def write_cookie_file():
+    cookie_b64 = os.getenv("YTDLP_COOKIES_BASE64")
+    if cookie_b64:
+        with open("cookies.txt", "wb") as f:
+            f.write(base64.b64decode(cookie_b64))
+
 def get_random_track(playlist_url):
     try:
         playlist_id = playlist_url.split("/")[-1].split("?")[0]
@@ -53,25 +62,28 @@ def get_random_track(playlist_url):
     return f"{title} {artist}", title, artist
 
 def download_youtube_audio(query, output_path):
+    write_cookie_file()  # <- ajouter ceci
+
     search = VideosSearch(query, limit=1)
     result = search.result()
     if not result['result']:
         raise Exception("Aucun résultat YouTube.")
 
-    video = result['result'][0]
-    link = video['link']
-    title = video['title']
-    thumbnail = video['thumbnails'][0]['url']
-    channel = video['channel']['name']
+    link = result['result'][0]['link']
+    title = result['result'][0]['title']
+    thumbnail = result['result'][0]['thumbnails'][0]['url']
+    channel = result['result'][0]['channel']['name']
 
-    print(f"[YOUTUBE] Vidéo : {link}")
+    print(f"[YOUTUBE] Vidéo trouvée : {link}")
 
     output_path_base = os.path.splitext(output_path)[0]
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_path_base + '.%(ext)s',
         'quiet': True,
         'noplaylist': True,
+        'cookies': 'cookies.txt',  # ← utilisation des cookies
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -83,7 +95,7 @@ def download_youtube_audio(query, output_path):
         ydl.download([link])
 
     if not os.path.exists(output_path):
-        raise Exception("Fichier audio non généré.")
+        raise Exception(f"Échec du téléchargement : fichier manquant ({output_path})")
 
     return output_path, title, thumbnail, channel
 
