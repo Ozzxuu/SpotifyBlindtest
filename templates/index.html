@@ -7,7 +7,7 @@
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      background-color: #121212;
+      background: linear-gradient(135deg, #1e1e1e, #121212);
       color: #ffffff;
       display: flex;
       flex-direction: column;
@@ -16,84 +16,108 @@
     }
 
     h1 {
-      margin: 20px;
-      font-size: 2.5em;
+      font-size: 2.8em;
+      margin-bottom: 20px;
+      color: #1DB954;
     }
 
     label, select, input, button {
       margin: 10px;
-      font-size: 1em;
+      font-size: 1.1em;
     }
 
     button {
       background-color: #1DB954;
       border: none;
       color: white;
-      padding: 10px 20px;
-      border-radius: 5px;
+      padding: 12px 24px;
+      border-radius: 8px;
       cursor: pointer;
-      transition: background-color 0.3s ease;
+      font-size: 1em;
+      transition: background-color 0.3s ease, transform 0.2s ease;
     }
 
     button:hover {
       background-color: #1aa34a;
+      transform: scale(1.05);
     }
 
     #countdown {
-      font-size: 2em;
+      font-size: 3em;
       margin: 20px 0;
       transition: opacity 0.5s ease;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
     }
 
     #result {
-      font-size: 1.2em;
+      text-align: center;
+      font-size: 1.3em;
       font-weight: bold;
-      margin: 10px;
-      color: #1DB954;
+      margin: 20px;
+      color: #ffffff;
       transition: opacity 0.5s ease;
+    }
+
+    #result img {
+      display: block;
+      margin: 20px auto;
+      max-width: 320px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.6);
     }
 
     audio {
       margin: 15px;
     }
 
-    #loader {
-      margin: 20px;
-      display: none;
-      font-style: italic;
-      color: #ccc;
-    }
-
     #history {
       margin-top: 40px;
-      max-width: 600px;
+      max-width: 700px;
       width: 100%;
     }
 
     .history-item {
-      background: #1e1e1e;
-      margin: 10px 0;
-      padding: 10px;
-      border-radius: 8px;
+      background: #2b2b2b;
+      margin: 12px 0;
+      padding: 15px;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       opacity: 0;
-      transform: translateY(20px);
-      animation: fadeIn 0.5s forwards;
+      transform: translateY(30px);
+      animation: fadeInUp 0.5s forwards;
     }
 
-    .history-item img {
-      width: 60px;
-      height: 60px;
-      border-radius: 5px;
-      margin-right: 15px;
-    }
-
-    @keyframes fadeIn {
+    @keyframes fadeInUp {
       to {
         opacity: 1;
         transform: translateY(0);
       }
+    }
+
+    .history-item img {
+      width: 70px;
+      height: 70px;
+      border-radius: 8px;
+      margin-right: 15px;
+    }
+
+    #loadingText {
+      margin: 20px 0;
+      font-size: 1.1em;
+      color: #cccccc;
+      animation: fade 1s infinite alternate;
+    }
+
+    @keyframes fade {
+      from { opacity: 0.5; }
+      to { opacity: 1; }
     }
   </style>
 </head>
@@ -110,7 +134,7 @@
 
   <button onclick="startBlindTest()">Lancer 🎬</button>
 
-  <div id="loader">Chargement de l'extrait...</div>
+  <div id="loadingText" hidden>Chargement de l'extrait...</div>
   <div id="countdown"></div>
   <audio id="audio" controls hidden></audio>
   <div id="result"></div>
@@ -118,7 +142,7 @@
   <div id="history"></div>
 
   <script>
-    const countdownSound = new Audio("https://www.soundjay.com/button/beep-07.wav");
+    const countdownSound = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
 
     async function startBlindTest() {
       const playlist = document.getElementById("playlist").value;
@@ -127,44 +151,46 @@
       const result = document.getElementById("result");
       const countdown = document.getElementById("countdown");
       const audio = document.getElementById("audio");
-      const loader = document.getElementById("loader");
+      const loadingText = document.getElementById("loadingText");
 
       result.textContent = "";
       countdown.textContent = "";
       audio.hidden = true;
-      loader.style.display = "block";
       audio.pause();
+      loadingText.hidden = false;
 
       if (!playlist) {
         alert("Veuillez entrer une URL de playlist Spotify.");
-        loader.style.display = "none";
+        loadingText.hidden = true;
         return;
       }
 
-      const response = await fetch(`/play?playlist=${encodeURIComponent(playlist)}&duration=${duration}&full=${full}`);
-      loader.style.display = "none";
-      if (!response.ok) {
+      try {
+        const response = await fetch(`/play?playlist=${encodeURIComponent(playlist)}&duration=${duration}&full=${full}`);
+        if (!response.ok) throw new Error();
+
+        const data = await response.json();
+        audio.src = data.audio_url;
+        audio.hidden = false;
+        audio.play();
+        loadingText.hidden = true;
+
+        let timeLeft = parseInt(duration);
+        const interval = setInterval(() => {
+          countdown.textContent = `${timeLeft}s`;
+          countdownSound.play();
+          timeLeft--;
+          if (timeLeft < 0) {
+            clearInterval(interval);
+            countdown.textContent = "⏱️ Réponse :";
+            result.innerHTML = `<div style='font-size: 1.5em;'>${data.title} — ${data.artist}</div><img src="${data.thumbnail}" alt="thumbnail">`;
+            loadHistory();
+          }
+        }, 1000);
+      } catch {
+        loadingText.hidden = true;
         alert("Erreur lors de la récupération de l'extrait.");
-        return;
       }
-
-      const data = await response.json();
-      audio.src = data.audio_url;
-      audio.hidden = false;
-      audio.play();
-
-      let timeLeft = parseInt(duration);
-      const interval = setInterval(() => {
-        countdown.textContent = `${timeLeft}s`;
-        countdownSound.play().catch(() => {});
-        timeLeft--;
-        if (timeLeft < 0) {
-          clearInterval(interval);
-          countdown.textContent = "⏱️ Réponse :";
-          result.innerHTML = `<strong style='font-size:1.3em;'>${data.title}</strong><br>${data.artist}<br><img src="${data.thumbnail}" width="200">`;
-          loadHistory();
-        }
-      }, 1000);
     }
 
     async function loadHistory() {
@@ -179,7 +205,7 @@
         div.innerHTML = `
           <img src="${item.thumbnail}" alt="thumbnail">
           <div>
-            <div><strong>${item.title}</strong> — ${item.artist}</div>
+            <div style="font-size: 1.2em; color: #ffffff;"><strong>${item.title}</strong> — ${item.artist}</div>
             <div style="font-size: 0.9em; color: #bbb;">${item.timestamp}</div>
           </div>`;
         historyContainer.appendChild(div);
