@@ -2,6 +2,7 @@ import os
 import random
 import traceback
 import tempfile
+import base64
 import shutil
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template
@@ -62,8 +63,6 @@ def get_random_track(playlist_url):
     return f"{title} {artist}", title, artist
 
 def download_youtube_audio(query, output_path):
-    write_cookie_file()  # <- ajouter ceci
-
     search = VideosSearch(query, limit=1)
     result = search.result()
     if not result['result']:
@@ -78,18 +77,38 @@ def download_youtube_audio(query, output_path):
 
     output_path_base = os.path.splitext(output_path)[0]
 
+    # === Traitement des cookies base64 ===
+    raw_cookie_b64 = os.getenv("YTDLP_COOKIES_BASE64")
+    if not raw_cookie_b64:
+        raise Exception("Variable YTDLP_COOKIES_BASE64 non définie.")
+
+    with tempfile.NamedTemporaryFile(delete=False, mode="wb", suffix=".txt") as tmp_cookie_file:
+        tmp_cookie_file.write(base64.b64decode(raw_cookie_b64))
+        tmp_cookie_path = tmp_cookie_file.name
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_path_base + '.%(ext)s',
         'quiet': True,
         'noplaylist': True,
-        'cookies': 'cookies.txt',  # ← utilisation des cookies
+        'cookiefile': tmp_cookie_path,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
     }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([link])
+    finally:
+        os.remove(tmp_cookie_path)
+
+    if not os.path.exists(output_path):
+        raise Exception(f"Échec du téléchargement : fichier manquant ({output_path})")
+
+    return output_path, title, thumbnail, channel
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([link])
