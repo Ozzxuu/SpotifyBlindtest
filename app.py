@@ -19,37 +19,33 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 SPOTIPY_CLIENT_ID = os.getenv("SPOTIPY_CLIENT_ID")
 SPOTIPY_CLIENT_SECRET = os.getenv("SPOTIPY_CLIENT_SECRET")
 
+# Initialisation du client Spotify global
+sp = Spotify(auth_manager=SpotifyClientCredentials(
+    client_id=SPOTIPY_CLIENT_ID,
+    client_secret=SPOTIPY_CLIENT_SECRET
+))
+
 played_tracks = []
 played_tracks_data = []
 
-# Fonction pour instancier dynamiquement le client Spotify
-def get_spotify_client():
-    return Spotify(auth_manager=SpotifyClientCredentials(
-        client_id=SPOTIPY_CLIENT_ID,
-        client_secret=SPOTIPY_CLIENT_SECRET
-    ))
-
-
 # === UTILITAIRES ===
 def get_random_track(playlist_url):
-    sp = Spotify(auth_manager=SpotifyClientCredentials(
-        client_id=os.getenv("SPOTIPY_CLIENT_ID"),
-        client_secret=os.getenv("SPOTIPY_CLIENT_SECRET")
-    ))
-
-    playlist_id = playlist_url.split("/")[-1].split("?")[0]
-    results = sp.playlist_tracks(playlist_id)
-    tracks = results['items']
+    try:
+        playlist_id = playlist_url.split("/")[-1].split("?")[0]
+        results = sp.playlist_tracks(playlist_id)
+        tracks = results['items']
+    except Exception as e:
+        raise Exception("Échec récupération des pistes Spotify : " + str(e))
 
     if not tracks:
         raise Exception("Playlist vide.")
 
-    remaining_tracks = [t for t in tracks if t['track']['id'] not in played_tracks]
-    if not remaining_tracks:
+    remaining = [t for t in tracks if t['track'] and t['track']['id'] not in played_tracks]
+    if not remaining:
         played_tracks.clear()
-        remaining_tracks = tracks
+        remaining = tracks
 
-    track = random.choice(remaining_tracks)['track']
+    track = random.choice(remaining)['track']
     played_tracks.append(track['id'])
 
     title = track['name']
@@ -62,15 +58,15 @@ def download_youtube_audio(query, output_path):
     if not result['result']:
         raise Exception("Aucun résultat YouTube.")
 
-    link = result['result'][0]['link']
-    title = result['result'][0]['title']
-    thumbnail = result['result'][0]['thumbnails'][0]['url']
-    channel = result['result'][0]['channel']['name']
+    video = result['result'][0]
+    link = video['link']
+    title = video['title']
+    thumbnail = video['thumbnails'][0]['url']
+    channel = video['channel']['name']
 
-    print(f"[YOUTUBE] Vidéo trouvée : {link}")
+    print(f"[YOUTUBE] Vidéo : {link}")
 
     output_path_base = os.path.splitext(output_path)[0]
-
     ydl_opts = {
         'format': 'bestaudio/best',
         'outtmpl': output_path_base + '.%(ext)s',
@@ -87,7 +83,7 @@ def download_youtube_audio(query, output_path):
         ydl.download([link])
 
     if not os.path.exists(output_path):
-        raise Exception(f"Échec du téléchargement : fichier manquant ({output_path})")
+        raise Exception("Fichier audio non généré.")
 
     return output_path, title, thumbnail, channel
 
@@ -115,10 +111,9 @@ def play():
         original_path = os.path.join(temp_dir, "original_audio.mp3")
         extrait_path = os.path.join("static", "extrait.mp3")
 
-        if os.path.exists(original_path):
-            os.remove(original_path)
-        if os.path.exists(extrait_path):
-            os.remove(extrait_path)
+        for path in (original_path, extrait_path):
+            if os.path.exists(path):
+                os.remove(path)
 
         full_query, title, artist = get_random_track(playlist_url)
         original_path, yt_title, thumbnail_url, channel = download_youtube_audio(full_query, original_path)
@@ -134,20 +129,20 @@ def play():
             "thumbnail": thumbnail_url,
             "timestamp": datetime.now().strftime("%H:%M:%S")
         })
-
         played_tracks_data[:] = played_tracks_data[:10]
 
-        return {
+        return jsonify({
             "success": True,
             "filename": extrait_path,
             "audio_url": "/" + extrait_path,
             "title": title,
             "artist": artist,
             "thumbnail": thumbnail_url
-        }
+        })
+
     except Exception as e:
         traceback.print_exc()
-        return {"success": False, "error": str(e)}, 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/history")
 def history():
@@ -162,4 +157,4 @@ def envcheck():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port)
