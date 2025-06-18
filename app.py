@@ -4,7 +4,6 @@ import traceback
 import tempfile
 import shutil
 from datetime import datetime
-
 from flask import Flask, request, jsonify, render_template
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -14,9 +13,7 @@ import yt_dlp
 from pydub import AudioSegment
 from dotenv import load_dotenv
 
-# Chargement de l'environnement
-if os.path.exists(".env"):
-    load_dotenv()
+load_dotenv()
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -39,18 +36,22 @@ def get_random_track(playlist_url):
     global sp
     playlist_id = playlist_url.split("/")[-1].split("?")[0]
 
+    def fetch_tracks():
+        return sp.playlist_tracks(playlist_id)
+
     try:
-        results = sp.playlist_tracks(playlist_id)
+        results = fetch_tracks()
     except SpotifyException as e:
         if e.http_status == 401:
+            print("\u26a0\ufe0f Token expir\u00e9, r\u00e9g\u00e9n\u00e9ration du client Spotify...")
             sp = get_spotify_client()
-            results = sp.playlist_tracks(playlist_id)
+            results = fetch_tracks()
         else:
             raise
 
     tracks = results.get('items', [])
     if not tracks:
-        raise Exception("Playlist vide.")
+        raise Exception("Playlist vide ou inaccessible.")
 
     remaining_tracks = [t for t in tracks if t['track'] and t['track']['id'] not in played_tracks]
     if not remaining_tracks:
@@ -68,14 +69,14 @@ def download_youtube_audio(query, output_path):
     search = VideosSearch(query, limit=1)
     result = search.result()
     if not result['result']:
-        raise Exception("Aucun résultat YouTube.")
+        raise Exception("Aucun r\u00e9sultat YouTube.")
 
     link = result['result'][0]['link']
     title = result['result'][0]['title']
     thumbnail = result['result'][0]['thumbnails'][0]['url']
     channel = result['result'][0]['channel']['name']
 
-    print("🔗 Vidéo trouvée :", link)
+    print("\ud83d\udd17 Vid\u00e9o trouv\u00e9e :", link)
 
     output_path_base = os.path.splitext(output_path)[0]
 
@@ -95,7 +96,7 @@ def download_youtube_audio(query, output_path):
         ydl.download([link])
 
     if not os.path.exists(output_path):
-        raise Exception(f"Échec du téléchargement : fichier manquant ({output_path})")
+        raise Exception(f"\u00c9chec du t\u00e9l\u00e9chargement : fichier manquant ({output_path})")
 
     return output_path, title, thumbnail, channel
 
@@ -117,7 +118,7 @@ def play():
     try:
         duration = int(request.args.get("duration", 3))
         full = request.args.get("full", "false").lower() == "true"
-        playlist_url = request.args.get("playlist") or "https://open.spotify.com/playlist/4YHLZ2DTFg6vGKbJMFsRPG"
+        playlist_url = request.args.get("playlist", "https://open.spotify.com/playlist/4YHLZ2DTFg6vGKbJMFsRPG")
 
         temp_dir = tempfile.gettempdir()
         original_path = os.path.join(temp_dir, "original_audio.mp3")
@@ -153,7 +154,6 @@ def play():
             "artist": artist,
             "thumbnail": thumbnail_url
         }
-
     except Exception as e:
         traceback.print_exc()
         return {"success": False, "error": str(e)}, 500
