@@ -5,7 +5,7 @@ builder = "nixpacks"
 nixPkgs = ["python311Full", "ffmpeg", "gcc"]
 
 [phases.install]
-cmds = ["python3.11 -m ensurepip", "python3.11 -m pip install --upgrade pip", "python3.11 -m pip install -r requirements.txt"]
+cmds = ["pip3 install --upgrade pip", "pip3 install -r requirements.txt"]
 
 [start]
 cmd = "gunicorn app:app --bind 0.0.0.0:${PORT:-5000}"
