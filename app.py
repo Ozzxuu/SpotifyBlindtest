@@ -12,7 +12,6 @@ from youtubesearchpython import VideosSearch
 import yt_dlp
 from pydub import AudioSegment
 from dotenv import load_dotenv
-
 load_dotenv()
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
