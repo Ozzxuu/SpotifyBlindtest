@@ -19,19 +19,23 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 SPOTIPY_CLIENT_ID = os.getenv("SPOTIPY_CLIENT_ID")
 SPOTIPY_CLIENT_SECRET = os.getenv("SPOTIPY_CLIENT_SECRET")
 
+played_tracks = []
+played_tracks_data = []
+
+# Fonction pour instancier dynamiquement le client Spotify
 def get_spotify_client():
+    print("[SPOTIFY] Creating new Spotify client instance")
     return Spotify(auth_manager=SpotifyClientCredentials(
         client_id=SPOTIPY_CLIENT_ID,
         client_secret=SPOTIPY_CLIENT_SECRET
     ))
 
-played_tracks = []
-played_tracks_data = []
-
 # === UTILITAIRES ===
 def get_random_track(playlist_url):
     playlist_id = playlist_url.split("/")[-1].split("?")[0]
     sp = get_spotify_client()
+
+    print(f"[SPOTIFY] Fetching tracks from playlist: {playlist_id}")
     results = sp.playlist_tracks(playlist_id)
     tracks = results['items']
 
@@ -61,7 +65,7 @@ def download_youtube_audio(query, output_path):
     thumbnail = result['result'][0]['thumbnails'][0]['url']
     channel = result['result'][0]['channel']['name']
 
-    print("🔗 Vidéo trouvée :", link)
+    print(f"[YOUTUBE] Vidéo trouvée : {link}")
 
     output_path_base = os.path.splitext(output_path)[0]
 
@@ -149,11 +153,10 @@ def history():
 
 @app.route("/envcheck")
 def envcheck():
-    return {
-        "SPOTIPY_CLIENT_ID": os.getenv("SPOTIPY_CLIENT_ID"),
-        "SPOTIPY_CLIENT_SECRET": os.getenv("SPOTIPY_CLIENT_SECRET")
-    }
-
+    return jsonify({
+        "SPOTIPY_CLIENT_ID": bool(SPOTIPY_CLIENT_ID),
+        "SPOTIPY_CLIENT_SECRET": bool(SPOTIPY_CLIENT_SECRET)
+    })
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
